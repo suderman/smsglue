@@ -61,9 +61,9 @@ function SMSGlue(base64Token) {
       post: `token=${this.base64Token}&device=%pushToken%&app=%pushappid%`
     },
 
-    // This URL is added to voip.ms to be called whenever a new SMS is received (it updates the local cache of SMSs from voip.ms)
-    update: {
-      url:  `${process.env.BASEURL}/update/${this.identifier}`
+    // This URL is added to voip.ms to be called whenever a new SMS is received (it deletes the local cache of SMSs)
+    refresh: {
+      url:  `${process.env.BASEURL}/refresh/${this.identifier}`
     },
 
     // Acrobits refresh the list of SMSs with this URL whenever the app is opened or a notification is received
@@ -163,7 +163,7 @@ SMSGlue.prototype.enable = function(cb) {
     method: 'setSMS',
     enable: 1,
     url_callback_enable: 1,
-    url_callback: this.hooks.update.url,
+    url_callback: this.hooks.refresh.url,
     url_callback_retry: 1
   }, cb);
 }
@@ -387,7 +387,7 @@ app.post('/send', (req, res) => {
 
 
 // :identifier
-app.get('/update/:identifier', (req, res) => {
+app.get('/refresh/:identifier', (req, res) => {
 
   // Deleted the cached history
   fs.unlink(SMSGlue.cacheDirectory('messages', req.params.identifier), (err) => {
@@ -425,12 +425,12 @@ app.post('/fetch', (req, res) => {
     // Decrypt the messages and send them back
     var smss = glue.decrypt(data) || [];
     if (smss.length) {
-      console.log('Found SMS cache')
+      // console.log('Found SMS cache')
       fetchFilteredSMS(smss);
 
     // If the array is empty, update the cache from voip.ms and try again
     } else {
-      console.log('DID NOT find SMS cache')
+      // console.log('DID NOT find SMS cache')
       glue.get((error) => {
 
         // Read the cached messages one more time
