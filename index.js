@@ -51,8 +51,7 @@ function SMSGlue(base64Token) {
 
     // This URL must be manually entered into Acrobits Softphone/Groundwire to enabled the next URLs
     provision: {
-      url:  `${process.env.BASEURL}/provision`,
-      post: `token=${this.base64Token}`
+      url:  `${process.env.BASEURL}/provision/${this.base64Token}`
     },
 
     // Acrobits calls this URL to send us the push token and app id (needed for notifications)
