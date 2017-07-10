@@ -46,7 +46,9 @@ function SMSGlue(base64Token) {
     // The front-end form submits to this URL to enable SMS on voip.ms and return the provision URL
     enable: {
       url:  `${process.env.BASEURL}/enable`,
-      post: `token=${this.base64Token}`
+      post: JSON.stringify({ 
+        token: this.base64Token 
+      })
     },
 
     // This URL must be manually entered into Acrobits Softphone/Groundwire to enabled the next URLs
@@ -57,7 +59,11 @@ function SMSGlue(base64Token) {
     // Acrobits calls this URL to send us the push token and app id (needed for notifications)
     push: {
       url:  `${process.env.BASEURL}/push`,
-      post: `token=${this.base64Token}&amp;device=%pushToken%&amp;app=%pushappid%`
+      post: JSON.stringify({
+        token: this.base64Token,
+        device: '%pushToken%',
+        app: '%pushappid%'
+      })
     },
 
     // This URL is added to voip.ms to be called whenever a new SMS is received (it deletes the local cache of SMSs)
@@ -68,25 +74,37 @@ function SMSGlue(base64Token) {
     // Acrobits refresh the list of SMSs with this URL whenever the app is opened or a notification is received
     fetch: {
       url:  `${process.env.BASEURL}/fetch`,
-      post: `token=${this.base64Token}&amp;last_sms=%last_known_sms_id%`
+      post: JSON.stringify({
+        token: this.base64Token,
+        last_sms: '%last_known_sms_id%'
+      })
     },
 
     // Acrobits submits to this URL to send SMS messages
     send: {
       url:  `${process.env.BASEURL}/send`,
-      post: `token=${this.base64Token}&amp;dst=%sms_to%&amp;msg=%sms_body%`
+      post: JSON.stringify({
+        token: this.base64Token,
+        dst: '%sms_to%',
+        msg: '%sms_body%'
+      })
     },
 
     // Acrobits checks this URL for the financial balance left on this account
     balance: {
       url:  `${process.env.BASEURL}/balance`,
-      post: `token=${this.base64Token}`
+      post: JSON.stringify({ 
+        token: this.base64Token 
+      })
     },
 
     // Acrobits checks this URL for current calling/messaging rates
     rate: {
       url:  `${process.env.BASEURL}/rate`,
-      post: `token=${this.base64Token}&amp;dst=%targetNumber%`
+      post: JSON.stringify({
+        token: this.base64Token,
+        dst: '%targetNumber%'
+      })
     },
   }
 }
@@ -310,19 +328,22 @@ app.get('/provision/:token', (req, res) => {
   if (glue.valid) {
     xml += `<pushTokenReporterUrl>${glue.hooks.push.url}</pushTokenReporterUrl>`;
     xml += `<pushTokenReporterPostData>${glue.hooks.push.post}</pushTokenReporterPostData>`;
+    xml += `<pushTokenReporterContentType>application/json</pushTokenReporterContentType>`;
 
     xml += `<genericSmsFetchUrl>${glue.hooks.fetch.url}</genericSmsFetchUrl>`;
     xml += `<genericSmsFetchPostData>${glue.hooks.fetch.post}</genericSmsFetchPostData>`;
-
+    xml += `<genericSmsFetchContentType>application/json</genericSmsFetchContentType>`;
+    
     xml += `<genericSmsSendUrl>${glue.hooks.send.url}</genericSmsSendUrl>`;
     xml += `<genericSmsPostData>${glue.hooks.send.post}</genericSmsPostData>`;
+    xml += `<genericSmsContentType>application/json</genericSmsContentType>`;
 
     // xml += `<genericBalanceCheckUrl>${glue.hooks.balance.url}</genericBalanceCheckUrl>`;
-    xml += `<genericBalanceCheckPostData>${glue.hooks.balance.post}</genericBalanceCheckPostData>`;
+    // xml += `<genericBalanceCheckPostData>${glue.hooks.balance.post}</genericBalanceCheckPostData>`;
 
     // xml += `<genericRateCheckUrl>${glue.hooks.rate.url}</genericRateCheckUrl>`;
-    xml += `<genericRateCheckPostData>${glue.hooks.rate.post}</genericRateCheckPostData>`;
-    xml += `<rateCheckMinNumberLength>3</rateCheckMinNumberLength>`;
+    // xml += `<genericRateCheckPostData>${glue.hooks.rate.post}</genericRateCheckPostData>`;
+    // xml += `<rateCheckMinNumberLength>3</rateCheckMinNumberLength>`;
 
     xml += '<allowMessage>1</allowMessage>';
     xml += '<voiceMailNumber>*97</voiceMailNumber>';
