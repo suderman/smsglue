@@ -57,7 +57,7 @@ function SMSGlue(base64Token) {
     // Acrobits calls this URL to send us the push token and app id (needed for notifications)
     push: {
       url:  `${process.env.BASEURL}/push`,
-      post: `token=${this.base64Token}&device=%pushToken%&app=%pushappid%`
+      post: `token=${this.base64Token}&amp;device=%pushToken%&amp;app=%pushappid%`
     },
 
     // This URL is added to voip.ms to be called whenever a new SMS is received (it deletes the local cache of SMSs)
@@ -68,13 +68,13 @@ function SMSGlue(base64Token) {
     // Acrobits refresh the list of SMSs with this URL whenever the app is opened or a notification is received
     fetch: {
       url:  `${process.env.BASEURL}/fetch`,
-      post: `token=${this.base64Token}&last_sms=%last_known_sms_id%`
+      post: `token=${this.base64Token}&amp;last_sms=%last_known_sms_id%`
     },
 
     // Acrobits submits to this URL to send SMS messages
     send: {
       url:  `${process.env.BASEURL}/send`,
-      post: `token=${this.base64Token}&dst=%sms_to%&msg=%sms_body%`
+      post: `token=${this.base64Token}&amp;dst=%sms_to%&amp;msg=%sms_body%`
     },
 
     // Acrobits checks this URL for the financial balance left on this account
@@ -86,7 +86,7 @@ function SMSGlue(base64Token) {
     // Acrobits checks this URL for current calling/messaging rates
     rate: {
       url:  `${process.env.BASEURL}/rate`,
-      post: `token=${this.base64Token}&dst=%targetNumber%`
+      post: `token=${this.base64Token}&amp;dst=%targetNumber%`
     },
   }
 }
