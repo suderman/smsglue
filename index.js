@@ -432,11 +432,10 @@ app.get('/balance/:token', (req, res) => {
 });
 
 
-
-// respond with "hello world" when a GET request is made to the homepage
+// homepage
 app.get('/', function (req, res) {
     res.sendFile(__dirname + '/public/index.html');
 });
 
-app.listen(5000);
-console.log('Secure listening on port 5000');
+app.listen(process.env.PORT);
+console.log(`Listening on port ${process.env.PORT}`);
