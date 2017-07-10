@@ -1,6 +1,6 @@
 {
   "name": "smsglue",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "voip.ms SMS to Acrobits Softphone/Groundwire",
   "author": "suderman",
   "license": "ISC",
@@ -19,7 +19,8 @@
   },
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node ./index.js"
   },
   "dependencies": {
     "crypto": "0.0.3",
