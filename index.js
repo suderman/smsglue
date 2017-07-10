@@ -291,7 +291,7 @@ app.post('/enable', (req, res) => {
 
     if (body = SMSGlue.parseBody(body)) {
       res.setHeader('Content-Type', 'application/json');
-      res.send({ response: { error: 0, description: 'Success', urls: glue.hooks }});
+      res.send({ response: { error: 0, description: 'Success', hooks: glue.hooks }});
 
     } else {
       res.setHeader('Content-Type', 'application/json');
