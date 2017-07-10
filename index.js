@@ -303,9 +303,9 @@ app.post('/enable', (req, res) => {
 
 
 // :token
-app.post('/provision', (req, res) => {
+app.get('/provision/:token', (req, res) => {
 
-  var glue = new SMSGlue(req.body.token);
+  var glue = new SMSGlue(req.params.token);
   xml  = '<account>';
 
   if (glue.valid) {
