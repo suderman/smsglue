@@ -4,7 +4,7 @@ const fs = require('fs');
 
 const crypto = require('crypto'), 
       ALGO = 'aes192', 
-      SALT = process.env.SALT || process.env.BASEURL;
+      KEY = process.env.KEY || process.env.BASEURL;
 
 const moment = require('moment');
 const request = require('request');
@@ -13,152 +13,136 @@ var app = require('express')();
 var bodyParser = require('body-parser');
 var server = require('http').createServer(app);
 app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
 
+var TIMER = {};
 
-function SMSGlue(base64Token) {
-  this.base64Token = base64Token;
-  this.api_username = false;
-  this.api_password = false;
+function SMSGlue(token) {
+  this.token = token;
+  this.user = false;
+  this.pass = false;
   this.did = false;
   this.dst = false;
   this.msg = false;
   this.valid = false;
-  this.identifier = false;
+  this.id = false;
   
   try {
 
     // Decode and parse token JSON to object
-    var token = JSON.parse(Buffer.from(this.base64Token, 'base64').toString());
+    var decryptedToken = SMSGlue.decrypt(token);
 
     // Save token values
-    this.api_username = token.api_username.trim();
-    this.api_password = token.api_password.trim();
-    this.did = token.did.replace(/\D/g,'');
-    this.identifier = `smsglue-${this.encrypt(this.did, false)}`;
+    this.user = decryptedToken.user.trim();
+    this.pass = decryptedToken.pass.trim();
+    this.did = decryptedToken.did.replace(/\D/g,'');
+
+    // Determine identifer from DID
+    this.id = SMSGlue.encrypt(this.did);
 
   } catch(e) {}
 
   // Validate token values (username is email address, password 8 charactors or more, did 10 digits)
-  this.valid = ((this.api_username.toString().includes('@')) && (this.api_password.toString().length >= 8) && (this.did.toString().length == 10)) ? true : false;
+  this.valid = ((this.user.toString().includes('@')) && (this.pass.toString().length >= 8) && (this.did.toString().length == 10)) ? true : false;
 
   this.hooks = {
 
     // The front-end form submits to this URL to enable SMS on voip.ms and return the provision URL
     enable: {
-      url:  `${process.env.BASEURL}/enable`,
+      url:  `${process.env.BASEURL}`,
       post: JSON.stringify({ 
-        token: this.base64Token 
+        action: 'enable',
+        user: '',
+        pass: '',
+        did: ''
       })
     },
 
     // This URL must be manually entered into Acrobits Softphone/Groundwire to enabled the next URLs
     provision: {
-      url:  `${process.env.BASEURL}/provision/${this.base64Token}`
+      url:  `${process.env.BASEURL}/?p=${this.id}`
     },
 
     // Acrobits calls this URL to send us the push token and app id (needed for notifications)
     push: {
-      url:  `${process.env.BASEURL}/push`,
+      url:  `${process.env.BASEURL}`,
       post: JSON.stringify({
-        token: this.base64Token,
+        action: 'push',
         device: '%pushToken%',
-        app: '%pushappid%'
+        app: '%pushappid%',
+        token: this.token
       })
     },
 
     // This URL is added to voip.ms to be called whenever a new SMS is received (it deletes the local cache of SMSs)
-    refresh: {
-      url:  `${process.env.BASEURL}/refresh/${this.identifier}`
+    notify: {
+      url:  `${process.env.BASEURL}/?n=${this.id}`
     },
 
     // Acrobits refresh the list of SMSs with this URL whenever the app is opened or a notification is received
     fetch: {
-      url:  `${process.env.BASEURL}/fetch`,
+      url:  `${process.env.BASEURL}`,
       post: JSON.stringify({
-        token: this.base64Token,
-        last_sms: '%last_known_sms_id%'
+        action: 'fetch',
+        last_sms: '%last_known_sms_id%',
+        token: this.token
       })
     },
 
     // Acrobits submits to this URL to send SMS messages
     send: {
-      url:  `${process.env.BASEURL}/send`,
+      url:  `${process.env.BASEURL}`,
       post: JSON.stringify({
-        token: this.base64Token,
+        action: 'send',
         dst: '%sms_to%',
-        msg: '%sms_body%'
+        msg: '%sms_body%',
+        token: this.token
       })
     },
 
     // Acrobits checks this URL for the financial balance left on this account
     balance: {
-      url:  `${process.env.BASEURL}/balance`,
+      url:  `${process.env.BASEURL}`,
       post: JSON.stringify({ 
-        token: this.base64Token 
+        action: 'balance',
+        token: this.token 
       })
     },
 
     // Acrobits checks this URL for current calling/messaging rates
     rate: {
-      url:  `${process.env.BASEURL}/rate`,
+      url:  `${process.env.BASEURL}`,
       post: JSON.stringify({
-        token: this.base64Token,
-        dst: '%targetNumber%'
+        action: 'rate',
+        dst: '%targetNumber%',
+        token: this.token
       })
     },
   }
 }
 
-SMSGlue.cacheDirectory = function(category = 'messages', identifier) {
-  return os.tmpdir() + `/${identifier}.${category}`;
+
+SMSGlue.cache = function(id, category) {
+  return os.tmpdir() + `/SMSglue-${id}.${category}`;
 }
 
-SMSGlue.prototype.cacheDirectory = function(category = 'messages') {
-  return SMSGlue.cacheDirectory(category, this.identifier);
-}
-
-SMSGlue.encrypt = function(text, salt=SALT, json=true) {
-  text = (json) ? JSON.stringify(text) : text;
-  var cipher = crypto.createCipher(ALGO, salt);
-  var crypted = cipher.update(text, 'utf8', 'hex');
+SMSGlue.encrypt = function(text, key=KEY) {
+  var cipher = crypto.createCipher(ALGO, key);
+  var crypted = cipher.update(JSON.stringify(text), 'utf8', 'hex');
   crypted += cipher.final('hex');
   return crypted;
 }
 
-SMSGlue.prototype.encrypt = function(text, json=true) {
-  return SMSGlue.encrypt(text, this.base64Token + SALT, json);
-}
-
-SMSGlue.decrypt = function(text, salt=SALT, json=true) {
+SMSGlue.decrypt = function(text, key=KEY) {
   try {
-    var decipher = crypto.createDecipher(ALGO, salt);
+    var decipher = crypto.createDecipher(ALGO, key);
     var decrypted = decipher.update(text, 'hex', 'utf8')
     decrypted += decipher.final('utf8');
-    return (json) ? JSON.parse(decrypted) : decrypted;
+    return JSON.parse(decrypted);
 
   } catch(e) {
     return false;
   }
-}
-
-SMSGlue.prototype.decrypt = function(text, json=true) {
-  return SMSGlue.decrypt(text, this.base64Token + SALT, json);
-}
-
-
-SMSGlue.prototype.request = function(query = {}, callback) {
-  let options = {
-    method: 'GET',
-    url: 'https://www.voip.ms/api/v1/rest.php',
-    qs: {
-      api_username: this.api_username,
-      api_password: this.api_password,
-      did: this.did
-    }
-  };
-  Object.assign(options.qs, query);
-  // console.log(options);
-  request(options, callback);
 }
 
 
@@ -174,13 +158,29 @@ SMSGlue.parseBody = function(body) {
 } 
 
 
+SMSGlue.prototype.request = function(query = {}, callback) {
+  let options = {
+    method: 'GET',
+    url: 'https://www.voip.ms/api/v1/rest.php',
+    qs: {
+      api_username: this.user,
+      api_password: this.pass,
+      did: this.did
+    }
+  };
+  Object.assign(options.qs, query);
+  // console.log(options);
+  request(options, callback);
+}
+
+
 // Enable SMS messages in voip.ms account and set SMS URL Callback
 SMSGlue.prototype.enable = function(cb) {
   this.request({ 
     method: 'setSMS',
     enable: 1,
     url_callback_enable: 1,
-    url_callback: this.hooks.refresh.url,
+    url_callback: this.hooks.notify.url,
     url_callback_retry: 1
   }, cb);
 }
@@ -238,7 +238,7 @@ SMSGlue.prototype.get = function(cb) {
       });
 
       // Save this as a encrypted json file and hit the callback when done
-      fs.writeFile(this.cacheDirectory('messages'), this.encrypt(smss), 'utf8', cb);
+      fs.writeFile(SMSGlue.cache(this.id, 'messages'), SMSGlue.encrypt(smss, KEY + this.pass), 'utf8', cb);
 
     // Whoops, there was an error. Hit the callback with the error argument true
     } else {
@@ -249,11 +249,43 @@ SMSGlue.prototype.get = function(cb) {
 }
 
 
+SMSGlue.prototype.accountXML = function() {
+  xml  = '<account>';
+
+  if (this.valid) {
+    xml += `<pushTokenReporterUrl>${this.hooks.push.url}</pushTokenReporterUrl>`;
+    xml += `<pushTokenReporterPostData>${this.hooks.push.post}</pushTokenReporterPostData>`;
+    xml += `<pushTokenReporterContentType>application/json</pushTokenReporterContentType>`;
+
+    xml += `<genericSmsFetchUrl>${this.hooks.fetch.url}</genericSmsFetchUrl>`;
+    xml += `<genericSmsFetchPostData>${this.hooks.fetch.post}</genericSmsFetchPostData>`;
+    xml += `<genericSmsFetchContentType>application/json</genericSmsFetchContentType>`;
+    
+    xml += `<genericSmsSendUrl>${this.hooks.send.url}</genericSmsSendUrl>`;
+    xml += `<genericSmsPostData>${this.hooks.send.post}</genericSmsPostData>`;
+    xml += `<genericSmsContentType>application/json</genericSmsContentType>`;
+
+    // xml += `<genericBalanceCheckUrl>${this.hooks.balance.url}</genericBalanceCheckUrl>`;
+    // xml += `<genericBalanceCheckPostData>${this.hooks.balance.post}</genericBalanceCheckPostData>`;
+
+    // xml += `<genericRateCheckUrl>${this.hooks.rate.url}</genericRateCheckUrl>`;
+    // xml += `<genericRateCheckPostData>${this.hooks.rate.post}</genericRateCheckPostData>`;
+    // xml += `<rateCheckMinNumberLength>3</rateCheckMinNumberLength>`;
+
+    xml += '<allowMessage>1</allowMessage>';
+    xml += '<voiceMailNumber>*97</voiceMailNumber>';
+  }
+
+  xml += '</account>';
+  return xml;
+}
+
+
 // Send notification messages to all devices under this account
-SMSGlue.notify = function(identifier) {
+SMSGlue.notify = function(id) {
 
   // Read the cached push token and app id
-  fs.readFile(SMSGlue.cacheDirectory('devices', identifier), 'utf8', (err, encrypted) => {
+  fs.readFile(SMSGlue.cache(id, 'devices'), 'utf8', (err, encrypted) => {
 
     // Decrypt and prep
     var devices = SMSGlue.decrypt(encrypted) || [];
@@ -265,7 +297,7 @@ SMSGlue.notify = function(identifier) {
 
       // If there was a push error, rewrite the devices file with on the valid devices
       if ((sent >= devices.length) && (hasError)) {
-        fs.writeFile(SMSGlue.cacheDirectory('devices', identifier), SMSGlue.encrypt(validDevices), 'utf8');
+        fs.writeFile(SMSGlue.cache(id, 'devices'), SMSGlue.encrypt(validDevices), 'utf8', function(){});
       }
     }
 
@@ -300,78 +332,119 @@ SMSGlue.prototype.balance = function(cb) {
 }
 
 
-// :token
-app.post('/enable', (req, res) => {
 
-  let glue = new SMSGlue(req.body.token);
+
+
+
+
+app.post('/', function (req, res) {
+  console.log(req.body.action);
+  if (app.actions[req.body.action]) {
+    app.actions[req.body.action](req.body, res);
+
+  } else {
+    res.setHeader('Content-Type', 'application/json');
+    res.send({ response: { error: 400, description: 'Invalid parameters' }});
+  }
+});
+
+
+app.get('/', function (req, res) {
+
+  if (req.query.p) {
+    app.actions.provision(req.query.p, res);
+
+  } else if (req.query.n) {
+    app.actions.notify(req.query.n, res);
+
+  } else {
+    res.sendFile(__dirname + '/public/index.html');
+  }
+});
+
+
+
+app.actions = {};
+
+
+app.actions.provision = function(id, res) {
+
+  fs.readFile(SMSGlue.cache(id, 'provision'), 'utf8', (err, encrypted) => {
+    var xml = SMSGlue.decrypt(encrypted) || '<account></account>';
+
+    // If the file exists, empty this xml file (only "<account></account>") 
+    if (!err) {
+      if (TIMER[id]) clearTimeout(TIMER[id]);
+      fs.writeFile(SMSGlue.cache(id, 'provision'), SMSGlue.encrypt('<account></account>'), 'utf8', function(){});
+    }
+
+    res.setHeader('Content-Type', 'text/xml');
+    res.send(xml);
+  });
+}
+
+app.actions.notify = function(id, res) {
+  
+  // Deleted the cached history
+  fs.unlink(SMSGlue.cache(id, 'messages'), (err) => {
+
+    // Send push notification to device(s) 
+    SMSGlue.notify(id);
+
+    // If it's all good, let it be known
+    res.setHeader('Content-Type', 'application/json');
+    res.send({ response: { error: 0, description: 'Success' }});
+  });
+}
+
+
+app.actions.enable = function(params, res) {
+
+  let token = SMSGlue.encrypt({
+    user: params.user || '',
+    pass: params.pass || '',
+     did: params.did  || ''
+  });
+  
+
+  let glue = new SMSGlue(token);
   glue.enable( (err, r, body) => {
 
     if (body = SMSGlue.parseBody(body)) {
-      res.setHeader('Content-Type', 'application/json');
-      res.send({ response: { error: 0, description: 'Success', hooks: glue.hooks }});
+
+      fs.writeFile(SMSGlue.cache(glue.id, 'provision'), SMSGlue.encrypt(glue.accountXML()), 'utf8', () => {
+
+        // Auto-empty this xml file (only "<account></account>") after 10 minutes of waiting...
+        if (TIMER[this.id]) clearTimeout(TIMER[this.id]);
+        TIMER[this.id] = setTimeout(() => {
+          fs.writeFile(SMSGlue.cache(glue.id, 'provision'), SMSGlue.encrypt('<account></account>'), 'utf8', function(){});
+        }, 600000)
+      
+        res.setHeader('Content-Type', 'application/json');
+        res.send({ response: { error: 0, description: 'Success', hooks: glue.hooks }});
+      });
+
 
     } else {
       res.setHeader('Content-Type', 'application/json');
       res.send({ response: { error: 400, description: 'Invalid parameters' }});
     }
   });
-});
+}
 
 
-
-// :token
-app.get('/provision/:token', (req, res) => {
-
-  var glue = new SMSGlue(req.params.token);
-  xml  = '<account>';
-
-  if (glue.valid) {
-    xml += `<pushTokenReporterUrl>${glue.hooks.push.url}</pushTokenReporterUrl>`;
-    xml += `<pushTokenReporterPostData>${glue.hooks.push.post}</pushTokenReporterPostData>`;
-    xml += `<pushTokenReporterContentType>application/json</pushTokenReporterContentType>`;
-
-    xml += `<genericSmsFetchUrl>${glue.hooks.fetch.url}</genericSmsFetchUrl>`;
-    xml += `<genericSmsFetchPostData>${glue.hooks.fetch.post}</genericSmsFetchPostData>`;
-    xml += `<genericSmsFetchContentType>application/json</genericSmsFetchContentType>`;
-    
-    xml += `<genericSmsSendUrl>${glue.hooks.send.url}</genericSmsSendUrl>`;
-    xml += `<genericSmsPostData>${glue.hooks.send.post}</genericSmsPostData>`;
-    xml += `<genericSmsContentType>application/json</genericSmsContentType>`;
-
-    // xml += `<genericBalanceCheckUrl>${glue.hooks.balance.url}</genericBalanceCheckUrl>`;
-    // xml += `<genericBalanceCheckPostData>${glue.hooks.balance.post}</genericBalanceCheckPostData>`;
-
-    // xml += `<genericRateCheckUrl>${glue.hooks.rate.url}</genericRateCheckUrl>`;
-    // xml += `<genericRateCheckPostData>${glue.hooks.rate.post}</genericRateCheckPostData>`;
-    // xml += `<rateCheckMinNumberLength>3</rateCheckMinNumberLength>`;
-
-    xml += '<allowMessage>1</allowMessage>';
-    xml += '<voiceMailNumber>*97</voiceMailNumber>';
-  }
-
-  xml += '</account>';
-  // console.log(xml);
-
-  // Send account.xml with all web services URLs
-  res.setHeader('Content-Type', 'text/xml');
-  res.send(xml);
-});
-
-
-
-// :token, :device, :app
-app.post('/push', (req, res) => {
-  let glue = new SMSGlue(req.body.token);
+app.actions.push = function(params, res) {
+  let glue = new SMSGlue(params.token);
 
   // Read existing devices file
-  fs.readFile(glue.cacheDirectory('devices'), 'utf8', (err, encrypted) => {
+  fs.readFile(SMSGlue.cache(glue.id, 'devices'), 'utf8', (err, encrypted) => {
     var devices = SMSGlue.decrypt(encrypted) || [];
 
     // Add this push token & app id to the array
-    if ((req.body.device) && (req.body.app)) {
+    if ((params.device) && (params.app)) {
       devices.push({
-        DeviceToken: req.body.device,
-        AppId: req.body.app
+        DeviceToken: params.device,
+        AppId: params.app
       });
     }
 
@@ -379,59 +452,27 @@ app.post('/push', (req, res) => {
     devices = devices.filter((device, index, self) => self.findIndex((d) => {return d.DeviceToken === device.DeviceToken }) === index)
 
     // Save changes to disk
-    fs.writeFile(glue.cacheDirectory('devices'), SMSGlue.encrypt(devices), 'utf8', (err) => {
+    fs.writeFile(SMSGlue.cache(glue.id, 'devices'), SMSGlue.encrypt(devices), 'utf8', (err) => {
       res.setHeader('Content-Type', 'application/json');
       res.send({ response: { error: 0, description: 'Success' }});
     });
 
   });
-});
-
-
-// :token, :dst, :msg
-app.post('/send', (req, res) => {
-
-  let glue = new SMSGlue(req.body.token);
-  glue.send(req.body.dst, req.body.msg, (err, r, body) => {
-
-    if (body = SMSGlue.parseBody(body)) {
-      res.setHeader('Content-Type', 'application/json');
-      res.send({ response: { error: 0, description: 'Success' }});
-
-    } else {
-      res.setHeader('Content-Type', 'application/json');
-      res.send({ response: { error: 400, description: 'Invalid parameters' }});
-    }
-  });
-});
-
-
-// :identifier
-app.get('/refresh/:identifier', (req, res) => {
-
-  // Deleted the cached history
-  fs.unlink(SMSGlue.cacheDirectory('messages', req.params.identifier), (err) => {
-
-    // Send push notification to device(s) 
-    SMSGlue.notify();
-
-    // If it's all good, let it be known
-    res.setHeader('Content-Type', 'application/json');
-    res.send({ response: { error: 0, description: 'Success' }});
-  });
-});
+}
 
 
 // Fetch cached SMS messages, filtered by last SMS ID
-// :token, :last_sms
-app.post('/fetch', (req, res) => {
-
-  var glue = new SMSGlue(req.body.token);
-  var last_sms = Number(req.body.last_sms || 0);
-  // console.log('fetch...', last_sms)
+app.actions.fetch = function(params, res) {
+  var glue = new SMSGlue(params.token);
+  var last_sms = Number(params.last_sms || 0);
+  console.log('fetch...', last_sms)
 
   // Fetch filtered SMS messages back as JSON
   var fetchFilteredSMS = function(smss) {
+    // console.log({
+    //   date: moment().format("YYYY-MM-DDTHH:mm:ssZ"),
+    //   unread_smss: smss.filter((sms) => (Number(sms.sms_id) > last_sms))
+    // });
     res.setHeader('Content-Type', 'application/json');
     res.send({
       date: moment().format("YYYY-MM-DDTHH:mm:ssZ"),
@@ -440,52 +481,49 @@ app.post('/fetch', (req, res) => {
   }
 
   // First try to read the cached messages
-  fs.readFile(glue.cacheDirectory('messages'), 'utf8', (err, data) => {
+  fs.readFile(SMSGlue.cache(glue.id, 'messages'), 'utf8', (err, data) => {
 
     // Decrypt the messages and send them back
-    var smss = glue.decrypt(data) || [];
+    var smss = SMSGlue.decrypt(data, KEY + glue.pass) || [];
     if (smss.length) {
-      // console.log('Found SMS cache')
+      console.log('Found SMS cache')
       fetchFilteredSMS(smss);
 
     // If the array is empty, update the cache from voip.ms and try again
     } else {
-      // console.log('DID NOT find SMS cache')
+      console.log('DID NOT find SMS cache')
       glue.get((error) => {
 
         // Read the cached messages one more time
-        fs.readFile(glue.cacheDirectory('messages'), 'utf8', (err, data) => {
+        fs.readFile(SMSGlue.cache(glue.id, 'messages'), 'utf8', (err, data) => {
 
           // Decrypt the messages and send them back (last chance)
-          smss = glue.decrypt(data) || [];
+          smss = SMSGlue.decrypt(data, KEY + glue.pass) || [];
           fetchFilteredSMS(smss);
 
         });
       });
     }
-  });      
-})
+  });   
+}
 
+app.actions.send = function(params, res) {
+  let glue = new SMSGlue(params.token);
+  glue.send(params.dst, params.msg, (err, r, body) => {
 
-// app.get('/rate/:token/:dst', (req, res) => {
-//
-//   var glue = new SMSGlue(req.params.token);
-//   var dst = Number(req.params.dst);
-//
-//   var response = {
-//     "callRateString" : "1¢ / min",
-//     "messageRateString" : "5¢"
-//   }
-//
-//   res.setHeader('Content-Type', 'application/json');
-//   res.send(response);
-// });
+    if (body = SMSGlue.parseBody(body)) {
+      res.setHeader('Content-Type', 'application/json');
+      res.send({ response: { error: 0, description: 'Success' }});
 
+    } else {
+      res.setHeader('Content-Type', 'application/json');
+      res.send({ response: { error: 400, description: 'Invalid parameters' }});
+    }
+  });
+}
 
-// :token
-app.post('/balance', (req, res) => {
-
-  var glue = new SMSGlue(req.body.token);
+app.actions.balance = function(params, res) {
+  var glue = new SMSGlue(params.token);
   glue.balance((err, r, body) => {
 
     if (body = SMSGlue.parseBody(body)) {
@@ -502,13 +540,24 @@ app.post('/balance', (req, res) => {
       res.send({ response: { error: 400, description: 'Invalid parameters' }});
     }
   });
-});
+}
+
+app.actions.rate = function(params, res) {
+  var glue = new SMSGlue(params.token);
+  var dst = Number(params.dst);
+
+  var response = {
+    "callRateString" : "1¢ / min",
+    "messageRateString" : "5¢"
+  }
+
+  res.setHeader('Content-Type', 'application/json');
+  res.send(response);
+}
 
 
-// homepage
-app.get('/', function (req, res) {
-    res.sendFile(__dirname + '/public/index.html');
-});
+
+
 
 app.listen(process.env.PORT);
 console.log(`Listening on port ${process.env.PORT}`);
