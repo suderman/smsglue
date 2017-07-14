@@ -37,3 +37,10 @@ jspm_packages
 .node_repl_history
 
 .env
+
+# Persistant storage
+cache/devices
+cache/messages
+cache/provisions
+
+!.gitignore
