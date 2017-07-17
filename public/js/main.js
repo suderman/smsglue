@@ -53,24 +53,18 @@ jQuery(function($){
         user: $('input[name=user]').val(),
         pass: $('input[name=pass]').val(),
         did: $('input[name=did]').val(),
-        action: 'enable'
+        origin: window.location.origin
 
     }).done(function(data) {
       if (data.response.error==0) {
         console.log(data.response.hooks);
-        // $('input[name=provision_url]').val(data.response.hooks.provision.url)
-        // $('input[name=send_url]').val(data.response.hooks.send.url)
-        // $('input[name=send_post]').val(data.response.hooks.send.post)
-        // $('input[name=fetch_url]').val(data.response.hooks.fetch.url)
-        // $('input[name=fetch_post]').val(data.response.hooks.fetch.post)
 
         $('.not-ready').removeClass('not-ready').addClass('ready');
 
-        $('div.provision_url').text(data.response.hooks.provision.url)
-        $('div.send_url').text(data.response.hooks.send.url)
-        $('div.send_post').text(data.response.hooks.send.post)
-        $('div.fetch_url').text(data.response.hooks.fetch.url)
-        $('div.fetch_post').text(data.response.hooks.fetch.post)
+        $('div.provision').text(data.response.hooks.provision)
+        $('div.send').text(data.response.hooks.send)
+        $('div.fetch').text(data.response.hooks.fetch)
+        $('div.report').text(data.response.hooks.report)
       }
     });
 

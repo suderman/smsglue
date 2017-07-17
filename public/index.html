@@ -116,7 +116,7 @@
           <hr>
           <p><small><em>Disclaimer: by using this service, you agree that I am in no way liable for any bugs, problems, or mishaps of any kind, including&ndash;but not limited to&ndash;any VoIP.ms account or Acrobits apps. I am not affiliated with either company, nor do I represent them. I am merely a customer who enjoys their products. That being said, I do hope you find this service useful!</em></small></p>
           <hr>
-          <form name="enable" action="/">
+          <form name="enable" action="/enable">
             <div class="form-group">
               <label for="user">VoIP.ms User Name</label>
               <input type="email" class="form-control" id="user" name="user" placeholder="your.voip.ms@email-address.com">
@@ -165,29 +165,24 @@
 
             <div class="field-to-copy">
               <label>External Provisioning URL</label>
-              <div class="provision_url"></div>
+              <div class="provision"></div>
                 <button>Copy to Clipboard</button>
             </div>
 
             <div class="advanced">
               <div class="field-to-copy">
-                <label>Custom SMS Sender URL</label>
-                <div class="send_url"></div>
+                <label>Custom SMS Sender</label>
+                <div class="send"></div>
                 <button>Copy to Clipboard</button>
               </div>
               <div class="field-to-copy">
-                <label>Custom SMS Sender POST</label>
-                <div class="send_post"></div>
+                <label>Custom SMS Fetcher</label>
+                <div class="fetch"></div>
                 <button>Copy to Clipboard</button>
               </div>
               <div class="field-to-copy">
-                <label>Custom SMS Fetcher URL</label>
-                <div class="fetch_url"></div>
-                <button>Copy to Clipboard</button>
-              </div>
-              <div class="field-to-copy">
-                <label>Custom SMS Fetcher POST</label>
-                <div class="fetch_post"></div>
+                <label>Push Token Reporter</label>
+                <div class="report"></div>
                 <button>Copy to Clipboard</button>
               </div>
             </div>
