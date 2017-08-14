@@ -1,7 +1,8 @@
 const fs = require('fs');
+const path = require('path');
 const log = require('npmlog');
 
-var SMSglue = require('./smsglue')
+var SMSglue = require('./smsglue');
 
 var express = require('express');
 var app = express();
@@ -10,7 +11,6 @@ var server = require('http').createServer(app);
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
-app.use(['/','*'], express.static('public'))
 
 var TIMER = {};
 
@@ -23,7 +23,7 @@ app.post('/enable', (req, res) => {
        did: req.body.did  || ''
     });
 
-  let glue = new SMSglue(token, req.body.origin || '');
+  let glue = new SMSglue(token, req.body.origin || '', req.body.currency || false);
   glue.enable( (err, r, body) => {
 
     if (body = SMSglue.parseBody(body)) {
@@ -134,7 +134,6 @@ app.get(['/fetch/:token/:last_sms','/fetch/:token'], (req, res) => {
   }
 
   // First try to read the cached messages
-  // fs.readFile(SMSglue.cache(glue.id, 'messages'), 'utf8', (err, data) => {
   SMSglue.load('messages', glue.id, (err, data) => {
 
     // Decrypt the messages and send them back
@@ -182,19 +181,21 @@ app.get('/send/:token/:dst/:msg', (req, res) => {
 });
 
 
-app.get('/balance/:token', (req, res) => {
+app.get('/balance/:token/:currency', (req, res) => {
   log.info('Action', 'balance');
 
+  var currency = req.params.currency || 'USD';
+  var rate = (SMSglue.RATES[currency]) ? SMSglue.RATES[currency] : 1;
   var glue = new SMSglue(req.params.token);
   glue.balance((err, r, body) => {
 
     if (body = SMSglue.parseBody(body)) {
-      let amount = Number(body.balance.current_balance) || 0;
+      let amount = (Number(body.balance.current_balance) || 0) * rate;
       res.setHeader('Content-Type', 'application/json');
       res.send({
         "balanceString": amount.toFixed(2),
         "balance": amount,
-        "currency": "US"
+        "currency": currency
       });
 
     } else {
@@ -204,22 +205,38 @@ app.get('/balance/:token', (req, res) => {
   });
 });
 
-app.get('/rate/:token', (req, res) => {
-  log.info('Action', 'rate');
+// app.get('/rate/:token', (req, res) => {
+//   log.info('Action', 'rate');
+//
+//   var glue = new SMSglue(req.params.token);
+//   var dst = Number(req.params.dst);
+//
+//   var response = {
+//     "callRateString" : "1¢ / min",
+//     "messageRateString" : "5¢"
+//   }
+//
+//   res.setHeader('Content-Type', 'application/json');
+//   res.send(response);
+// });
 
-  var glue = new SMSglue(req.params.token);
-  var dst = Number(req.params.dst);
 
-  var response = {
-    "callRateString" : "1¢ / min",
-    "messageRateString" : "5¢"
-  }
+app.get('/', (req, res) => {
+  log.info('Action', 'index');
+  fs.readFile(path.resolve(__dirname, 'index.html'), 'utf8', (err, data) => {
 
-  res.setHeader('Content-Type', 'application/json');
-  res.send(response);
+    let o = '<option value="0">None</option>';
+    data = data.replace(o, [o].concat(Object.keys(SMSglue.RATES).map((c) => `<option value="${c}">${c}</option>`)).join(''));
+    data = (process.env.BEFORE_CLOSING_BODY_TAG) ? data.replace("</body>", `${process.env.BEFORE_CLOSING_BODY_TAG}\n</body>`) : data;
+
+    res.setHeader('Content-Type', 'text/html');
+    res.send(data);
+  });
 });
 
+app.get('*', (req, res) => {
+  log.info('Action', 'redirect');
+  res.redirect('/');
+});
 
-var PORT = process.env.PORT || 5000;
-app.listen(PORT);
-log.info('Init', `Listening on port ${PORT}`);
+module.exports = app;

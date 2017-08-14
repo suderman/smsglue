@@ -6,9 +6,10 @@ const crypto = require('crypto');
 const moment = require('moment');
 const request = require('request');
 
-function SMSglue(token, origin = '') {
+function SMSglue(token, origin = '', currency = false) {
   this.token = token;
   this.origin = origin;
+  this.currency = currency;
   this.user = false;
   this.pass = false;
   this.did = false;
@@ -50,36 +51,34 @@ function SMSglue(token, origin = '') {
     fetch: `${this.origin}/fetch/${this.token}/%last_known_sms_id%`,
 
     // Acrobits submits to this URL to send SMS messages
-    send: `${this.origin}/send/${this.token}/%sms_to%/%sms_body%`,
+    send: `${this.origin}/send/${this.token}/%sms_to%/%sms_body%`
+  }
+
+  if (this.currency) {
 
     // Acrobits checks this URL for the financial balance left on this account
-    balance: `${this.origin}/balance/${this.token}`,
+    this.hooks.balance = `${this.origin}/balance/${this.token}/${this.currency}`;
 
     // Acrobits checks this URL for current calling/messaging rates
-    rate: `${this.origin}/rate/${this.token}/%targetNumber%`
-
+    // this.hooks.rate = `${this.origin}/rate/${this.token}/%targetNumber%`
   }
 }
 
 
 // STATIC FUNCTIONS
 
-SMSglue.cache = function(type, id) {
-  return path.resolve(__dirname, '..', 'cache', type, id);
-}
-
 SMSglue.save = function(type, id, value, cb = function(){}) {
-  var filename = SMSglue.cache(type, id);
+  var filename = path.resolve('cache', type, id);
   fs.writeFile(filename, value, 'utf8', cb);
 }
 
 SMSglue.load = function(type, id, cb = function(){}) {
-  var filename = SMSglue.cache(type, id);
+  var filename = path.resolve('cache', type, id);
   fs.readFile(filename, 'utf8', cb);
 }
 
 SMSglue.clear = function(type, id, cb = function(){}) {
-  var filename = SMSglue.cache(type, id);
+  var filename = path.resolve('cache', type, id);
   fs.unlink(filename, cb);
 }
 
@@ -114,6 +113,39 @@ SMSglue.decrypt = function(text, salt=false) {
   }
 }
 
+
+// Update exchange rates from Open Exchange Rates API
+SMSglue.updateRates = function() {
+  request({
+    method: 'GET',
+    url: 'https://openexchangerates.org/api/latest.json',
+    qs: { app_id: process.env.OPEN_EXCHANGE_RATES },
+    json: true
+
+  }, (error, httpResponse, body) => {
+    if (error) return;
+    if (body.rates.USD) {
+      SMSglue.RATES = {};
+      ['USD','CAD'].forEach((key) => {
+        if (body.rates[key]) {
+          SMSglue.RATES[key] = body.rates[key];
+          delete body.rates[key];
+        }
+      });
+      Object.keys(body.rates).forEach((key) => {
+        SMSglue.RATES[key] = body.rates[key];
+      });
+    }
+  });
+}
+
+// Set exchange rates every 24 hours if API token set
+SMSglue.RATES = { "USD": 1 };
+if (process.env.OPEN_EXCHANGE_RATES) {
+  setInterval(SMSglue.updateRates, 86400000);
+  SMSglue.updateRates();
+}
+
 SMSglue.date = function(d=undefined) {
   return moment.utc(d).format("YYYY-MM-DDTHH:mm:ss.SSZ");
 }
@@ -133,7 +165,6 @@ SMSglue.parseBody = function(body) {
 SMSglue.notify = function(id, cb) {
 
   // Read the cached push token and app id
-  // fs.readFile(SMSglue.cache(id, 'devices'), 'utf8', (err, encrypted) => {
   SMSglue.load('devices', id, (err, encrypted) => {
 
     // Decrypt and prep
@@ -221,7 +252,6 @@ SMSglue.prototype.send = function(dst, msg, cb) {
   dst = dst.replace(/\D/g,'');
   msg = msg.trim();
 
-
   // Remove leading '1' on 11-digit phone numbers
   if ((dst.length == 11) && (dst.charAt(0) == '1')) {
     dst = dst.slice(1);
@@ -298,25 +328,12 @@ SMSglue.prototype.accountXML = function() {
   xml  = '<account>';
 
   if (this.valid) {
-    xml += `<pushTokenReporterUrl>${this.hooks.report}</pushTokenReporterUrl>`;
-    // xml += `<pushTokenReporterPostData></pushTokenReporterPostData>`;
-    // xml += `<pushTokenReporterContentType>application/x-www-form-urlencoded</pushTokenReporterContentType>`;
-
-    xml += `<genericSmsFetchUrl>${this.hooks.fetch}</genericSmsFetchUrl>`;
-    // xml += `<genericSmsFetchPostData></genericSmsFetchPostData>`;
-    // xml += `<genericSmsFetchContentType>application/x-www-form-urlencoded</genericSmsFetchContentType>`;
-    
-    xml += `<genericSmsSendUrl>${this.hooks.send}</genericSmsSendUrl>`;
-    // xml += `<genericSmsPostData></genericSmsPostData>`;
-    // xml += `<genericSmsContentType>application/x-www-form-urlencoded</genericSmsContentType>`;
-
-    // xml += `<genericBalanceCheckUrl>${this.hooks.balance}</genericBalanceCheckUrl>`;
-    // xml += `<genericBalanceCheckPostData>${this.hooks.balance.post}</genericBalanceCheckPostData>`;
-
-    // xml += `<genericRateCheckUrl>${this.hooks.rate}</genericRateCheckUrl>`;
-    // xml += `<genericRateCheckPostData>${this.hooks.rate.post}</genericRateCheckPostData>`;
-    // xml += `<rateCheckMinNumberLength>3</rateCheckMinNumberLength>`;
-
+    if (this.hooks.report)  xml += `<pushTokenReporterUrl>${this.hooks.report}</pushTokenReporterUrl>`;
+    if (this.hooks.fetch)   xml += `<genericSmsFetchUrl>${this.hooks.fetch}</genericSmsFetchUrl>`;
+    if (this.hooks.send)    xml += `<genericSmsSendUrl>${this.hooks.send}</genericSmsSendUrl>`;
+    if (this.hooks.balance) xml += `<genericBalanceCheckUrl>${this.hooks.balance}</genericBalanceCheckUrl>`;
+    if (this.hooks.rate)    xml += `<genericRateCheckUrl>${this.hooks.rate}</genericRateCheckUrl>`;
+    if (this.hooks.rate)    xml += `<rateCheckMinNumberLength>3</rateCheckMinNumberLength>`;
     xml += '<allowMessage>1</allowMessage>';
     xml += '<voiceMailNumber>*97</voiceMailNumber>';
   }
