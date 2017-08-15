@@ -239,7 +239,7 @@ SMSglue.prototype.enable = function(cb) {
     method: 'setSMS',
     enable: 1,
     url_callback_enable: 1,
-    url_callback: this.hooks.notify.url,
+    url_callback: this.hooks.notify,
     url_callback_retry: 1
   }, cb);
 }
