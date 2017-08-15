@@ -6,10 +6,9 @@ const crypto = require('crypto');
 const moment = require('moment');
 const request = require('request');
 
-function SMSglue(token, origin = '', currency = false) {
+function SMSglue(token, origin = '') {
   this.token = token;
   this.origin = origin;
-  this.currency = currency;
   this.user = false;
   this.pass = false;
   this.did = false;
@@ -52,15 +51,7 @@ function SMSglue(token, origin = '', currency = false) {
 
     // Acrobits submits to this URL to send SMS messages
     send: `${this.origin}/send/${this.token}/%sms_to%/%sms_body%`
-  }
 
-  if (this.currency) {
-
-    // Acrobits checks this URL for the financial balance left on this account
-    this.hooks.balance = `${this.origin}/balance/${this.token}/${this.currency}`;
-
-    // Acrobits checks this URL for current calling/messaging rates
-    // this.hooks.rate = `${this.origin}/rate/${this.token}/%targetNumber%`
   }
 }
 
@@ -113,39 +104,6 @@ SMSglue.decrypt = function(text, salt=false) {
   }
 }
 
-
-// Update exchange rates from Open Exchange Rates API
-SMSglue.updateRates = function() {
-  request({
-    method: 'GET',
-    url: 'https://openexchangerates.org/api/latest.json',
-    qs: { app_id: process.env.OPEN_EXCHANGE_RATES },
-    json: true
-
-  }, (error, httpResponse, body) => {
-    if (error) return;
-    if (body.rates.USD) {
-      SMSglue.RATES = {};
-      ['USD','CAD'].forEach((key) => {
-        if (body.rates[key]) {
-          SMSglue.RATES[key] = body.rates[key];
-          delete body.rates[key];
-        }
-      });
-      Object.keys(body.rates).forEach((key) => {
-        SMSglue.RATES[key] = body.rates[key];
-      });
-    }
-  });
-}
-
-// Set exchange rates every 24 hours if API token set
-SMSglue.RATES = { "USD": 1 };
-if (process.env.OPEN_EXCHANGE_RATES) {
-  setInterval(SMSglue.updateRates, 86400000);
-  SMSglue.updateRates();
-}
-
 SMSglue.date = function(d=undefined) {
   return moment.utc(d).format("YYYY-MM-DDTHH:mm:ss.SSZ");
 }
@@ -176,11 +134,11 @@ SMSglue.notify = function(id, cb) {
 
     // This will be called after each request, but only do anything after the final request
     var updateCachedDevices = function() {
-      log.info('updateCachedDevices', `sent count: ${sent}`);
+      // log.info('updateCachedDevices', `sent count: ${sent}`);
       
       // If number of messages sent matches the number of devices...
       if (sent >= devices.length) {
-        log.info('updateCachedDevices', 'sent matches device length');
+        // log.info('updateCachedDevices', 'sent matches device length');
 
         // If there was a push error, rewrite the devices file with on the valid devices
         if (hasError) {
@@ -229,21 +187,22 @@ SMSglue.prototype.request = function(query = {}, callback) {
     }
   };
   Object.assign(options.qs, query);
+  // log.info('request', options);
   request(options, callback);
 }
 
 
 // Enable SMS messages in voip.ms account and set SMS URL Callback
 SMSglue.prototype.enable = function(cb) {
+  var URL =  this.hooks.notify;
   this.request({ 
     method: 'setSMS',
     enable: 1,
     url_callback_enable: 1,
-    url_callback: this.hooks.notify,
+    url_callback: URL,
     url_callback_retry: 1
   }, cb);
 }
-
 
 // Send SMS message
 SMSglue.prototype.send = function(dst, msg, cb) {
@@ -265,7 +224,7 @@ SMSglue.prototype.send = function(dst, msg, cb) {
 
   // Recursively send 160 character chunks
   var sendMessage = (message = '') => {
-    log.info(`${this.did} -> ${dst}`, message);
+    // log.info(`${this.did} -> ${dst}`, message);
 
     var thisMessage = message.substring(0, 160);
     var nextMessage = message.substring(160);
@@ -328,24 +287,15 @@ SMSglue.prototype.accountXML = function() {
   xml  = '<account>';
 
   if (this.valid) {
-    if (this.hooks.report)  xml += `<pushTokenReporterUrl>${this.hooks.report}</pushTokenReporterUrl>`;
-    if (this.hooks.fetch)   xml += `<genericSmsFetchUrl>${this.hooks.fetch}</genericSmsFetchUrl>`;
-    if (this.hooks.send)    xml += `<genericSmsSendUrl>${this.hooks.send}</genericSmsSendUrl>`;
-    if (this.hooks.balance) xml += `<genericBalanceCheckUrl>${this.hooks.balance}</genericBalanceCheckUrl>`;
-    if (this.hooks.rate)    xml += `<genericRateCheckUrl>${this.hooks.rate}</genericRateCheckUrl>`;
-    if (this.hooks.rate)    xml += `<rateCheckMinNumberLength>3</rateCheckMinNumberLength>`;
+    if (this.hooks.report) xml += `<pushTokenReporterUrl>${this.hooks.report}</pushTokenReporterUrl>`;
+    if (this.hooks.fetch)  xml += `<genericSmsFetchUrl>${this.hooks.fetch}</genericSmsFetchUrl>`;
+    if (this.hooks.send)   xml += `<genericSmsSendUrl>${this.hooks.send}</genericSmsSendUrl>`;
     xml += '<allowMessage>1</allowMessage>';
     xml += '<voiceMailNumber>*97</voiceMailNumber>';
   }
 
   xml += '</account>';
   return xml;
-}
-
-SMSglue.prototype.balance = function(cb) {
-  this.request({ 
-    method: 'getBalance',
-  }, cb);
 }
 
 module.exports = SMSglue;

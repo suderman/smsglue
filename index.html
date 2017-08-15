@@ -44,7 +44,8 @@
         margin-top: 20px;
         margin-bottom: 20px;
         height: 0px;
-        border: 4px solid #000;
+        width: 75%;
+        border: 4px solid #ccc;
         border-width: 2px 0 0 0;
         background: #fff;
       }
@@ -55,6 +56,15 @@
         background: pink;
         padding: 10px 20px;
         border: 1px solid red;
+      }
+      p.disclaimer {
+        display: block;
+        font-size: 80%;
+        padding: 15px 20px;
+        margin: 30px 0;
+        background: #eee;
+        border: 1px solid #ccc;
+        text-align: justify;
       }
       button {
         font-family: monospace;
@@ -273,12 +283,14 @@
         <header>
           <div class="container">
             <h1>SMSglue</h1>
-            <p>voip.ms SMS to Acrobits Softphone/Groundwire</p>
+            <p>VoIP.ms SMS to Acrobits Softphone/Groundwire</p>
           </div>
         </header>
         <div class="container">
-          <p>For subscribers of <a href="https://voip.ms" target="_blank">voip.ms</a> who use <a href="https://www.acrobits.net/products/retail" target="_blank">Acrobits Softphone or Groundwire</a>, SMSglue will enable SMS text messaging.</p>
-          <p><small><em>Disclaimer: by using this service, you agree that I am in no way liable for any bugs, problems, or mishaps of any kind, including, but not limited to, any VoIP.ms account or Acrobits apps. I am not affiliated with either company, nor do I represent them. I am merely a customer who enjoys their products. Enjoy!</em></small></p>
+          <p>For subscribers of <a href="https://voip.ms" target="_blank">VoIP.ms</a> who use <a href="https://www.acrobits.net/products/retail" target="_blank">Acrobits Softphone or Groundwire</a>, SMSglue will enable SMS text messaging.</p>
+          <hr>
+          <p><em>Tip: the final step involves copying &amp; pasting text from this website into your Acrobits app, so you may wish to view this website from your device's browser.</em></p>
+          <p class="disclaimer">Disclaimer: by using this service, you agree that I am not liable for anything, including (but not limited to) any VoIP.ms account or Acrobits apps. I am not affiliated with either company, nor do I represent them. I am just a customer who likes using their products. Enjoy!</p>
           <button class="step step-0-done">BEGIN</button>
         </div>
       </div>
@@ -291,7 +303,7 @@
           </div>
         </header>
         <div class="container">
-          <p>You'll need to log into your VoIP.ms account and visit <strong>Main Menu -> SOAP and REST/JSON API</strong> (or just <a href="https://voip.ms/m/api.php" target="_blank">click here</a>.)</p>
+          <p>You'll need to log into your VoIP.ms account and visit <strong>Main Menu -> SOAP and REST/JSON API</strong> (or just <a href="https://voip.ms/m/api.php" target="_blank">click here</a>).</p>
           <p>Scroll down to API Configuration and do the following:</p>
           <ul>
             <li>Enter an API Password (usually something different than your regular account password), enter the confirmation, and click <strong>Save API Password</strong>.</li>
@@ -323,6 +335,7 @@
             <li><strong>Advanced Settings</strong></li>
             <li><strong>Web Services</strong></li>
           </ol>
+          <p>Once you have the Web Services screen ready, return to this webpage and hit NEXT.</p>
           <button class="step step-2-done">NEXT</button>
           <p>The following screenshots are from Groundwire:</p>
           <img class="ios1">
@@ -330,7 +343,6 @@
           <img class="ios3">
           <img class="ios4">
           <img class="ios5">
-          <p>Once you have the Web Services screen ready, return to this webpage and hit NEXT.</p>
           <button class="step step-2-done">NEXT</button>
         </div>
       </div>
@@ -355,8 +367,6 @@
               <input type="password" class="form-control" minlength="8" id="pass" name="pass" placeholder="Password">
               <label for="did">VoIP.ms&nbsp;DID (10&nbsp;digit,&nbsp;US/Canada&nbsp;number)</label>
               <input type="tel" class="form-control" minlength="10" maxlength="10" id="did" name="did" placeholder="1234567890">
-              <label for="currency">Optional: Account&nbsp;Balance&nbsp;Currency</label>
-              <select name="currency"><option value="0">None</option></select>
             </form>
             <button class="step step-3-done">Activate VoIP.ms SMS</button>
           </div>
@@ -386,11 +396,6 @@
             <button class="step">Show all URLs</button>
           </div>
           <div class="links-advanced">
-            <div class="balance-field field-to-copy">
-              <label>Custom Balance Checker</label>
-              <div class="balance"></div>
-              <button>Copy to Clipboard</button>
-            </div>
             <div class="field-to-copy">
               <label>Custom SMS Sender</label>
               <div class="send"></div>
@@ -406,7 +411,7 @@
               <div class="report"></div>
               <button>Copy to Clipboard</button>
             </div>
-            <p>Once these fields are populated, Tap <strong>Done</strong> in your app's settings and save your changes. To ensure push notifications work immediately, force-quit the app and relaunch.</p>
+            <p>Once these fields are populated, tap <strong>Done</strong> in your app's settings and save your changes. To ensure push notifications work immediately, force-quit the app and relaunch.</p>
             <p><strong><em>NOW</em> you're all done!</strong></p>
             <br><br>
           </div>
@@ -430,19 +435,23 @@
       $(window).resize(resizeSteps);
       resizeSteps();
 
-      $('button.step-0-done').click(function(e) {
+      $('button.step-0-done').click(function(event) {
+        event.preventDefault();
         nextStep(1);
       });
 
-      $('button.step-1-done').click(function(e) {
+      $('button.step-1-done').click(function(event) {
+        event.preventDefault();
         nextStep(2);
       });
 
-      $('button.step-2-done').click(function(e) {
+      $('button.step-2-done').click(function(event) {
+        event.preventDefault();
         nextStep(3);
       });
 
-      $('button.step-3-done').click(function(e) {
+      $('button.step-3-done').click(function(event) {
+        event.preventDefault();
         $('.form').addClass('loading');
 
         // Submit form
@@ -450,7 +459,6 @@
           user: $('input[name=user]').val(),
           pass: $('input[name=pass]').val(),
           did: $('input[name=did]').val(),
-          currency: $('select[name=currency]').val(),
           origin: window.location.origin
 
         }).done(function(data) {
@@ -463,24 +471,25 @@
 
           // If successful, populate fields and proceed to next step
           } else {
-            $('div.provision').text(data.response.hooks.provision)
-            $('div.send').text(data.response.hooks.send)
-            $('div.fetch').text(data.response.hooks.fetch)
-            $('div.report').text(data.response.hooks.report)
-            $('div.balance').text(data.response.hooks.balance)
-            if ($('select[name=currency]').val()=="0") $('div.balance-field').hide()
+            $('div.provision').text(data.response.hooks.provision);
+            $('div.send').text(data.response.hooks.send);
+            $('div.fetch').text(data.response.hooks.fetch);
+            $('div.report').text(data.response.hooks.report);
             nextStep(4);
           }
         });
       });
 
-      $('.links-simple button').click(function() {
+      $('.links-simple button').click(function(event) {
+        event.preventDefault();
         $('.links-simple').hide();
         $('.links-advanced').show();
         nextStep(4);
       });
 
-      $('.field-to-copy div, .field-to-copy button').on('click', function(){
+      $('.field-to-copy div, .field-to-copy button').on('click', function(event) {
+        event.preventDefault();
+
         var $div = $(this).closest('.field-to-copy').find('div'),
           $button = $(this).closest('.field-to-copy').find('button'),
           buttonText = $button.text();

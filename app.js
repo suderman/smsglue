@@ -15,6 +15,7 @@ app.use(bodyParser.json());
 var TIMER = {};
 
 app.post('/enable', (req, res) => {
+  log.info('Action', 'enable');
 
   let token = req.body.did.substring(6) + '-' + 
     SMSglue.encrypt({
@@ -23,10 +24,11 @@ app.post('/enable', (req, res) => {
        did: req.body.did  || ''
     });
 
-  let glue = new SMSglue(token, req.body.origin || '', req.body.currency || false);
+  let glue = new SMSglue(token, req.body.origin || '');
   glue.enable( (err, r, body) => {
 
     if (body = SMSglue.parseBody(body)) {
+      // log.info('Action', body);
 
       SMSglue.save('provisions', glue.id, SMSglue.encrypt(glue.accountXML()), () => {
 
@@ -122,7 +124,7 @@ app.get(['/fetch/:token/:last_sms','/fetch/:token'], (req, res) => {
   var glue = new SMSglue(req.params.token);
   var last_sms = Number(req.params.last_sms) || 0;
 
-  log.info('last_sms', last_sms);
+  // log.info('last_sms', last_sms);
 
   // Fetch filtered SMS messages back as JSON
   var fetchFilteredSMS = function(smss) {
@@ -139,12 +141,12 @@ app.get(['/fetch/:token/:last_sms','/fetch/:token'], (req, res) => {
     // Decrypt the messages and send them back
     var smss = SMSglue.decrypt(data, glue.pass) || [];
     if (smss.length) {
-      log.info(glue.did, 'Found SMS cache')
+      // log.info(glue.did, 'Found SMS cache')
       fetchFilteredSMS(smss);
 
     // If the array is empty, update the cache from voip.ms and try again
     } else {
-      log.info(glue.did, 'DID NOT find SMS cache')
+      // log.info(glue.did, 'DID NOT find SMS cache')
       glue.get((error) => {
 
         // Read the cached messages one more time
@@ -159,7 +161,6 @@ app.get(['/fetch/:token/:last_sms','/fetch/:token'], (req, res) => {
     }
   });   
 });
-
 
 app.get('/send/:token/:dst/:msg', (req, res) => {
   log.info('Action', 'send');
@@ -180,55 +181,10 @@ app.get('/send/:token/:dst/:msg', (req, res) => {
   });
 });
 
-
-app.get('/balance/:token/:currency', (req, res) => {
-  log.info('Action', 'balance');
-
-  var currency = req.params.currency || 'USD';
-  var rate = (SMSglue.RATES[currency]) ? SMSglue.RATES[currency] : 1;
-  var glue = new SMSglue(req.params.token);
-  glue.balance((err, r, body) => {
-
-    if (body = SMSglue.parseBody(body)) {
-      let amount = (Number(body.balance.current_balance) || 0) * rate;
-      res.setHeader('Content-Type', 'application/json');
-      res.send({
-        "balanceString": amount.toFixed(2),
-        "balance": amount,
-        "currency": currency
-      });
-
-    } else {
-      res.setHeader('Content-Type', 'application/json');
-      res.send({ response: { error: 400, description: 'Invalid parameters' }});
-    }
-  });
-});
-
-// app.get('/rate/:token', (req, res) => {
-//   log.info('Action', 'rate');
-//
-//   var glue = new SMSglue(req.params.token);
-//   var dst = Number(req.params.dst);
-//
-//   var response = {
-//     "callRateString" : "1¢ / min",
-//     "messageRateString" : "5¢"
-//   }
-//
-//   res.setHeader('Content-Type', 'application/json');
-//   res.send(response);
-// });
-
-
 app.get('/', (req, res) => {
   log.info('Action', 'index');
   fs.readFile(path.resolve(__dirname, 'index.html'), 'utf8', (err, data) => {
-
-    let o = '<option value="0">None</option>';
-    data = data.replace(o, [o].concat(Object.keys(SMSglue.RATES).map((c) => `<option value="${c}">${c}</option>`)).join(''));
     data = (process.env.BEFORE_CLOSING_BODY_TAG) ? data.replace("</body>", `${process.env.BEFORE_CLOSING_BODY_TAG}\n</body>`) : data;
-
     res.setHeader('Content-Type', 'text/html');
     res.send(data);
   });
