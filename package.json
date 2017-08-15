@@ -1,6 +1,6 @@
 {
   "name": "smsglue",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "voip.ms SMS to Acrobits Softphone/Groundwire",
   "author": "suderman",
   "license": "ISC",
