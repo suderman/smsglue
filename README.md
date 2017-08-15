@@ -29,15 +29,30 @@ http {
   log_format filter '$remote_addr - $remote_user [$time_local] "$req" $status $body_bytes_sent "$http_referer" "$http_user_agent"';
 
   server {
-  ...
+    listen 443 ssl;
+    server_name smsglue.com;
 
-    location {
-      ...
+    ssl on;
+    ssl_certificate     fullchain.cer;
+    ssl_certificate_key privatekey.key;
+
+    location / {
 
       # Strip everything after hyphen "-" in log request
       set $req $request;
       if ($req ~ (.+)\-(.*)) { set $req $1; }
       access_log access.log filter;
+      
+      # Reverse Proxy
+      proxy_pass http://127.0.0.1:5000;
+      
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
     }
   }
 }
