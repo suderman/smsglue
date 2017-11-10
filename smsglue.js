@@ -253,7 +253,7 @@ SMSglue.prototype.get = function(cb) {
     to: moment.utc().add(1, 'day').format('YYYY-MM-DD'),
     limit: 9999,
     type: 1,
-    timezone: -1
+    timezone: 0
 
   // Wait for it... 
   }, (err, r, body) => {
