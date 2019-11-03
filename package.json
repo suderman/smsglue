@@ -1,6 +1,6 @@
 {
   "name": "smsglue",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "voip.ms SMS to Acrobits Softphone/Groundwire",
   "author": "suderman",
   "license": "ISC",
@@ -23,11 +23,11 @@
     "start": "node ./index.js"
   },
   "dependencies": {
-    "body-parser": "^1.17.2",
-    "express": "^4.15.3",
-    "moment": "^2.18.1",
+    "body-parser": "^1.19.0",
+    "express": "^4.17.1",
+    "moment": "^2.19.3",
     "npmlog": "^4.1.2",
     "randomstring": "^1.1.5",
-    "request": "^2.81.0"
+    "request": "^2.88.0"
   }
 }
