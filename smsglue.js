@@ -4,6 +4,7 @@ const path = require('path')
 const log = require('npmlog');
 const crypto = require('crypto');
 const moment = require('moment');
+const momenttz = require('moment-timezone');
 const request = require('request');
 
 function SMSglue(token, origin = '') {
@@ -253,7 +254,7 @@ SMSglue.prototype.get = function(cb) {
     to: moment.utc().add(1, 'day').format('YYYY-MM-DD'),
     limit: 9999,
     type: 1,
-    timezone: (moment().utc().isDST()) ? -1 : 0
+    timezone: (momenttz.tz('America/Edmonton').isDST()) ? -1 : 0
 
   // Wait for it... 
   }, (err, r, body) => {
