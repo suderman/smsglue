@@ -25,7 +25,8 @@
   "dependencies": {
     "body-parser": "^1.19.0",
     "express": "^4.17.1",
-    "moment": "^2.19.3",
+    "moment": "^2.24.0",
+    "moment-timezone": "^0.5.28",
     "npmlog": "^4.1.2",
     "randomstring": "^1.1.5",
     "request": "^2.88.0"
