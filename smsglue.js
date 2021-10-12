@@ -181,6 +181,9 @@ SMSglue.prototype.request = function(query = {}, callback) {
   let options = {
     method: 'GET',
     url: 'https://www.voip.ms/api/v1/rest.php',
+    headers: {
+      'User-Agent': 'smsglue',
+    },
     qs: {
       api_username: this.user,
       api_password: this.pass,
